@@ -1,0 +1,109 @@
+services:
+  traefik:
+    image: traefik:v3.6.1
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+    environment:
+      - EMAIL=${EMAIL}
+      - TRAEFIK_DOMAIN=${TRAEFIK_DOMAIN}
+      - HASHED_TRAEFIK_PASSWORD=${HASHED_TRAEFIK_PASSWORD}
+    command:
+      # API/Dashboard
+      - "--api.dashboard=true"
+      - "--api.insecure=false"
+      # Swarm provider
+      - "--providers.swarm=true"
+      - "--providers.swarm.exposedbydefault=false"
+      - "--providers.swarm.network=proxy"
+      # Entrypoints
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # HTTP to HTTPS redirect
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+      # Let's Encrypt
+      - "--certificatesresolvers.letsencrypt.acme.email=${EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      # Logging
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--accesslog.format=json"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        - "traefik.enable=true"
+        # Dashboard
+        - "traefik.http.routers.dashboard.rule=Host(`${TRAEFIK_DOMAIN}`)"
+        - "traefik.http.routers.dashboard.service=api@internal"
+        - "traefik.http.routers.dashboard.entrypoints=websecure"
+        - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.dashboard.middlewares=admin-auth"
+        - "traefik.http.middlewares.admin-auth.basicauth.users=admin:${HASHED_TRAEFIK_PASSWORD}"
+        - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
+    networks:
+      - proxy
+
+  agent:
+    image: portainer/agent:lts
+    environment:
+      AGENT_CLUSTER_ADDR: tasks.agent
+      AGENT_SECRET_FILE: /run/secrets/portainer_agent_secret
+    secrets:
+      - portainer_agent_secret
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+    networks:
+      - agent_network
+    deploy:
+      mode: global
+      placement:
+        constraints: [node.platform.os == linux]
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    command: -H tcp://tasks.agent:9001 --tlsskipverify
+    secrets:
+      - portainer_agent_secret
+    environment:
+      AGENT_SECRET_FILE: /run/secrets/portainer_agent_secret
+    volumes:
+      - portainer_data:/data
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.portainer.rule=Host(`${PORTAINER_DOMAIN}`)"
+        - "traefik.http.routers.portainer.entrypoints=websecure"
+        - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
+        - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+    networks:
+      - proxy      # For Traefik access
+      - agent_network  # For agent communication
+
+volumes:
+  portainer_data:
+  traefik_letsencrypt:
+
+networks:
+  proxy:
+    external: true
+  agent_network:
+    driver: overlay
+    attachable: true
+
+secrets:
+  portainer_agent_secret:
+    external: true
