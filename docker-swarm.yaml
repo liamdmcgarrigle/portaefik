@@ -68,14 +68,22 @@ services:
       mode: global
       placement:
         constraints: [node.platform.os == linux]
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
 
   portainer:
     image: portainer/portainer-ce:latest
-    command: -H tcp://tasks.agent:9001 --tlsskipverify
+    command: -H tcp://tasks.agent:9001 --tlsskipverify --snapshot-interval=15m
     secrets:
       - portainer_agent_secret
     environment:
       AGENT_SECRET_FILE: /run/secrets/portainer_agent_secret
+      GOMEMLIMIT: 330MiB
     volumes:
       - portainer_data:/data
     deploy:
@@ -83,6 +91,13 @@ services:
       replicas: 1
       placement:
         constraints: [node.role == manager]
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 384M
+        reservations:
+          cpus: '0.10'
+          memory: 128M
       labels:
         - "traefik.enable=true"
         - "traefik.http.routers.portainer.rule=Host(`${PORTAINER_DOMAIN}`)"
