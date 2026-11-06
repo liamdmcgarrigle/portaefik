@@ -38,12 +38,14 @@ docker compose up -d
 | [3. Usage - Compose](docs/3-usage-compose.md) | Exposing services with Docker Compose |
 | [4. Usage - Swarm](docs/4-usage-swarm.md) | Docker Swarm setup, secrets management |
 | [5. Securing](docs/5-securing.md) | Firewall, SSH hardening, security basics |
+| [6. Real Client IPs](docs/6-real-client-ips.md) | Passing visitor IPs through safely, swarm ports, Cloudflare |
 
 ## What's Included
 
 - `docker-compose.yaml` - Standard Docker Compose setup
 - `docker-swarm.yaml` - Docker Swarm setup with secrets support
 - `.env.example` - Template for required environment variables
+- `traefik/cloudflare-aop.yml` - Optional Traefik TLS option for Cloudflare Authenticated Origin Pulls
 
 ## Requirements
 
