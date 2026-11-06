@@ -1,0 +1,10 @@
+# Only for sites proxied through Cloudflare with Authenticated Origin Pulls.
+# Makes Traefik refuse any TLS connection that doesn't present your Cloudflare
+# client certificate. See docs/6-real-client-ips.md before turning this on.
+tls:
+  options:
+    default:
+      clientAuth:
+        caFiles:
+          - /etc/traefik/certs/cloudflare-aop-ca.pem
+        clientAuthType: RequireAndVerifyClientCert

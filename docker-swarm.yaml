@@ -16,6 +16,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik_letsencrypt:/letsencrypt
+    # cloudflare authenticated origin pulls, see docs/6-real-client-ips.md
+    # configs:
+    #   - source: traefik_cloudflare_aop_v1
+    #     target: /etc/traefik/dynamic/cloudflare-aop.yml
+    #   - source: cloudflare_aop_ca_v1
+    #     target: /etc/traefik/certs/cloudflare-aop-ca.pem
     environment:
       - EMAIL=${EMAIL}
       - TRAEFIK_DOMAIN=${TRAEFIK_DOMAIN}
@@ -31,9 +37,9 @@ services:
       # Entrypoints
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      # only if something sits in front of traefik (cloudflare proxy, load balancer).
-      # list just that upstream's IPs, never use forwardedHeaders.insecure
-      # see docs/5-securing.md#real-client-ips
+      # only if you run a load balancer in front of traefik. list just its IPs and
+      # never use forwardedHeaders.insecure. behind cloudflare leave this off and
+      # read CF-Connecting-IP instead. see docs/6-real-client-ips.md
       # - "--entrypoints.websecure.forwardedHeaders.trustedIPs=1.2.3.4/32"
       # HTTP to HTTPS redirect
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
@@ -47,6 +53,8 @@ services:
       - "--log.level=INFO"
       - "--accesslog=true"
       - "--accesslog.format=json"
+      # cloudflare authenticated origin pulls, see docs/6-real-client-ips.md
+      # - "--providers.file.filename=/etc/traefik/dynamic/cloudflare-aop.yml"
     deploy:
       mode: replicated
       replicas: 1
@@ -131,6 +139,13 @@ networks:
   agent_network:
     driver: overlay
     attachable: true
+
+# cloudflare authenticated origin pulls, see docs/6-real-client-ips.md
+# configs:
+#   traefik_cloudflare_aop_v1:
+#     external: true
+#   cloudflare_aop_ca_v1:
+#     external: true
 
 secrets:
   portainer_agent_secret:

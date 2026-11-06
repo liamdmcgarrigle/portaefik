@@ -1,2 +1,4 @@
 .DS_Store
 .env
+# your Cloudflare AOP CA, see docs/6-real-client-ips.md
+traefik/cloudflare-aop-ca.pem
