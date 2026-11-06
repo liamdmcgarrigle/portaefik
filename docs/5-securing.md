@@ -105,3 +105,34 @@ services:
     networks:
       - proxy
 ```
+
+## Real Client IPs
+
+Apps behind Traefik see the visitor's IP in the `X-Real-Ip` and `X-Forwarded-For` headers. Anything that rate limits, logs, or bans by IP depends on that being right.
+
+Out of the box Traefik handles this safely. If a request doesn't come from a trusted IP, it throws away any `X-Forwarded-*` or `X-Real-Ip` headers the client sent and sets them itself from the actual connection. So a client can't fake its IP, and you don't need to configure anything.
+
+### Swarm: Host Mode Ports
+
+In swarm, a normal `"443:443"` port goes through the routing mesh, which replaces the client's IP with an internal swarm address. Traefik then correctly reports that internal IP, so every visitor looks like the same person. This is a [long-standing swarm limitation](https://github.com/moby/moby/issues/25526).
+
+`docker-swarm.yaml` publishes 80 and 443 in `mode: host` to get around it. The tradeoff is that only the node actually running Traefik listens on 80 and 443, so your DNS needs to point at that node. On a single node that's the same thing. If you have more than one manager, pin Traefik to one node (for example `node.hostname == your-node`) so it doesn't move away from your DNS.
+
+### Something in Front of Traefik
+
+If traffic goes through a Cloudflare proxy, a tunnel, or a load balancer first, Traefik sees that upstream's IP as the client. To fix it, tell Traefik to trust the headers that upstream sends by uncommenting the `trustedIPs` line in the compose file and listing only that upstream's IP ranges ([Cloudflare publishes theirs](https://www.cloudflare.com/ips/)).
+
+> [!WARNING]
+> Never use `--entrypoints.websecure.forwardedHeaders.insecure=true` in production. It trusts headers from anyone, so any client can claim to be any IP.
+
+Once an upstream is trusted, Traefik keeps the `X-Real-Ip` it sends and only fills it in when it's missing. Cloudflare doesn't send `X-Real-Ip` (it uses `CF-Connecting-IP`), so apps reading `X-Real-Ip` will see Cloudflare's IP. Have the app read `CF-Connecting-IP`, or use a Traefik plugin that copies it into `X-Real-Ip`. It also means a fake `X-Real-Ip` that a client sends through the upstream is kept as is, so run the check below through the upstream too.
+
+### Check It
+
+Deploy [traefik/whoami](https://github.com/traefik/whoami) behind Traefik, open it from your phone or another network, and compare `X-Real-Ip` with your actual IP. Then try faking it:
+
+```bash
+curl -H "X-Real-Ip: 1.2.3.4" -H "X-Forwarded-For: 1.2.3.4" https://whoami.yourdomain.com
+```
+
+If `1.2.3.4` shows up in the response, Traefik is trusting headers it shouldn't.

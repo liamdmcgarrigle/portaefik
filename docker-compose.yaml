@@ -22,6 +22,10 @@ services:
       # Entrypoints
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      # only if something sits in front of traefik (cloudflare proxy, load balancer).
+      # list just that upstream's IPs, never use forwardedHeaders.insecure
+      # see docs/5-securing.md#real-client-ips
+      # - "--entrypoints.websecure.forwardedHeaders.trustedIPs=1.2.3.4/32"
       # HTTP to HTTPS redirect
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
